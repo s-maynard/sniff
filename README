@@ -1,0 +1,15 @@
+# sniffer
+Wireless Information Tool
+
+Enclosed are 2 directories:
+
+sniff
+ - builds the application that uses libwit and libutil to collect WiFi info
+   and present it to the server
+
+meta-wifi-sniffer
+ - the metadata required to build a Linux-based distribution for the
+   Raspberry PI clients to run the WIT apps and libs.
+
+
+See the readme files in each directory for build instructions

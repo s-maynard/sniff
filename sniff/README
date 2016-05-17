@@ -1,0 +1,23 @@
+sniff:
+application to access wireless info from via libwit through simple 'c' APIs
+
+
+To clean:
+make clean
+   or
+git clean -dxf
+
+
+To build:
+./autogen.sh prefix=/usr
+make
+sudo make install
+
+
+Output:
+/usr/bin/sniff
+
+
+Usage:
+sniff
+

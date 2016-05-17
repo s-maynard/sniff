@@ -1,0 +1,39 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          wlan-ctl
+# Required-Start:    #adjust
+# Required-Stop:     #adjust
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+ 
+DESC="Raspberry Pi wlan Startup Script Deamon"
+NAME="wlan-ctl"
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: $NAME"
+	ifup wlan0
+	echo "."
+	;;
+  stop)
+	echo -n "Stopping $DESC: $NAME"
+	ifdown wlan0
+	echo "."
+	;;
+  restart)
+	echo -n "Restarting $DESC: $NAME"
+	ifdown wlan0
+	sleep 1
+	ifup wlan0
+	echo "."
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}" >&2
+	exit 1
+	;;
+esac
+
+exit 0
+

@@ -1,0 +1,24 @@
+#!/bin/sh
+
+#source: http://offbytwo.com/2008/05/09/show-ip-address-of-vm-as-console-pre-login-message.html
+
+if [ "$METHOD" = loopback ]; then
+    exit 0
+fi
+
+# Only run from ifup.
+if [ "$MODE" != start ]; then
+    exit 0
+fi
+
+# if we don't have a copy of the "good" /etc/issue, make it
+if [ ! -f /etc/issue-standard ]; then
+    cp /etc/issue /etc/issue-standard
+fi
+
+cp /etc/issue-standard /etc/issue
+
+echo "IP Address(es):" >> /etc/issue
+echo "`get-ip-address`" >> /etc/issue
+echo "" >> /etc/issue
+
