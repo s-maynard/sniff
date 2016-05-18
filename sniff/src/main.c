@@ -567,7 +567,6 @@ init_lcd:
     connect_wifi(interface);
     get_clientID(ID);
     LOG(NOTICE, "arch = %s", cpu_arch);
-    scan_APs(interface);
 
     do {
 
@@ -579,14 +578,16 @@ init_lcd:
         if ((tick % 600) == 0) {
         }
 
-        // Every ten seconds...
-        if ((tick % 10) == 0) {
+        // Every thirty seconds...
+        if ((tick % 30) == 0) {
+            scan_APs(interface);
+#if 0
             if(0 != ping_canary(_2GHz_ip, canary, 2, tick)) {
                 connection_failed(interface, _2GHz_ip, canary, tick);
             } else if(0 != ping_canary(_5GHz_ip, canary, 2, tick)) {
                 connection_failed(interface, _5GHz_ip, canary, tick);
             }
-
+#endif
             // get system usage / info
             if(sysinfo(&si) != 0) {
                 LOG(ERROR, "sysinfo failed (%d)", errno);
