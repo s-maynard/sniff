@@ -46,8 +46,6 @@
 #define Canary_IP "8.8.8.8"
 #define SSID "ATGWiFi"
 #define PASS "mystrotv"
-#define SRVR_IP "71.74.181.76"
-#define SRVR_PORT 80
 #define CONFIG_PATH_EXT "/media/usb"
 #define CONFIG_PATH_INT "/home/pi"
 #define CONFIG_PATH_SIZE 128
@@ -61,10 +59,8 @@ static char ssid[32];
 static char pass[128];
 static char _2GHz_ip[128];
 static char _5GHz_ip[128];
-static char server_ip[128];
 static char location[1024];
 static char canary[128];
-static int server_port = SRVR_PORT;
 static int outages = 0;
 static unsigned long outsecs = 0;
 static int current_freq = 0;
@@ -72,13 +68,10 @@ static int current_chan = 0;
 static int current_signal = 0;
 
 static bool use_lcd = true;
-static bool use_ping = false;
 static bool nm_running = false;
 static bool daemonize = false;
 static bool run_for_gdb = false;
-static bool auto_upgrade = true;
 static bool done = false;
-static int app_id = 0;
 
 static char cpu_arch[MAX_NAME_BUF_SZ];
 static char srvr_name[MAX_NAME_BUF_SZ];
@@ -154,7 +147,7 @@ pr_lcd_header(long int tick)
     if (use_lcd) {
         if (tick == -1)
             pr_lcd_line(0, "Configuration:", false);
-	else if (tick & 0x1)
+    else if (tick & 0x1)
             pr_lcd_line(0, IP, false);
         else
             pr_lcd_line(0, MAC, false);
@@ -186,135 +179,6 @@ get_clientID(char *id)
     sprintf(MAC, "%s", get_mac_str(MAC_buf));
     sprintf(id, "HOUND_%s", MAC);
     return id;
-}
-
-static int
-get_appID(char *id)
-{
-    char buf[64];
-    int appID = 0;
-
-    snprintf(buf, sizeof(buf), "usr %s", id);
-    http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-    if (!parse_get_resp(rx_buf, false, NULL, &appID))
-        LOG(WARN, "GET %s failed", buf);
-    return appID;
-}
-
-static void
-check_sw_versions(void)
-{
-    char filename[64];
-    char buf[64];
-    char lcdbuf[16];
-    int new_ver = 0;
-    bool restart = false;
-
-    // call the library to get its version...
-    client_lib_version = get_lib_version();
-
-    // contact the image server to check our app version...
-    app_id = get_appID(ID);
-
-    if (0 == app_id) {
-        snprintf(buf, sizeof(buf), "add %s,arch:%s,aver:%07x,lver:%07x",
-                 ID, cpu_arch, client_app_version, client_lib_version);
-        http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-        if (!parse_get_resp(rx_buf, false, NULL, &app_id)) {
-            LOG(WARN, "GET %s failed", buf);
-        }
-    }
-
-    if (0 == app_id) {
-        LOG(ERROR, "could not get our app server ID!");
-    } else {
-        if (use_lcd) {
-            LCDclear();
-            pr_lcd_header(0);
-            snprintf(lcdbuf, sizeof(lcdbuf), "app_id: %d", app_id);
-            pr_lcd_line(1, lcdbuf, true);
-        }
-
-        LOG(NOTICE, "our app ID = %d", app_id);
-        snprintf(buf, sizeof(buf), "gasv uid:%d", app_id);
-        http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-        if (!parse_get_resp(rx_buf, false, NULL, &new_ver)) {
-            LOG(WARN, "GET %s failed", buf);
-        }
-
-        if (new_ver && client_app_version != new_ver) {
-            LOG(NOTICE,"our app version (0x%07x) needs to be updated to 0x%07x",
-                client_app_version, new_ver);
-
-            if (use_lcd) {
-                snprintf(lcdbuf, sizeof(lcdbuf), "app: %07x",
-                         client_app_version);
-                pr_lcd_line(2, lcdbuf, true);
-            }
-
-            if (auto_upgrade) {
-                snprintf(buf, sizeof(buf), "gasw uid:%d,ver:0x%07x",
-                    app_id, new_ver);
-                snprintf(filename, sizeof(filename),
-                    "/tmp/sniff-%s-%07x.tgz", cpu_arch, new_ver);
-
-                if (download_file(srvr_name, server_port,
-                    buf, filename, rx_buf))
-                    restart = true;
-            } else {
-                LOG(WARN, "ignoring app upgrade request!");
-            }
-        } else {
-            LOG(NOTICE,"our app version (0x%x) is current", client_app_version);
-        }
-
-        snprintf(buf, sizeof(buf), "glsv uid:%d", app_id);
-        http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-        if (!parse_get_resp(rx_buf, false, NULL, &new_ver)) {
-            LOG(WARN, "GET %s failed", buf);
-        }
-
-        if (new_ver && client_lib_version != new_ver) {
-            LOG(NOTICE,"our lib version (0x%07x) needs to be updated to 0x%07x",
-                client_lib_version, new_ver);
-
-            if (use_lcd) {
-                snprintf(lcdbuf, sizeof(lcdbuf), "lib: %07x",
-                         client_lib_version);
-                pr_lcd_line(3, lcdbuf, true);
-                sleep(3);
-            }
-
-            if (auto_upgrade) {
-                snprintf(buf, sizeof(buf), "glsw uid:%d,ver:0x%07x",
-                    app_id, new_ver);
-                snprintf(filename, sizeof(filename),
-                    "/tmp/libwit-%s-%07x.tgz", cpu_arch, new_ver);
-
-                if (download_file(srvr_name, server_port,
-                    buf, filename, rx_buf))
-                    restart = true;
-            } else {
-                LOG(WARN, "ignoring lib upgrade request!");
-            }
-        } else {
-            LOG(NOTICE,"our lib version (0x%x) is current", client_lib_version);
-        }
-
-        if (restart) {
-            LOG(NOTICE, "restarting...");
-
-            if (use_lcd) {
-                pr_lcd_line(4, "Upgrading...", true);
-                sleep(3);
-            }
-            exit(0);
-        }
-    }
 }
 
 static void
@@ -376,9 +240,6 @@ read_configuration(void)
                     } else if (strstr(tag, "PASS")) {
                         LOG(INFO, "change %s %s to %s", tag, pass, val);
                         strcpy(pass, val);
-                    } else if (strstr(tag, "SERVER_IP")) {
-                        LOG(INFO, "change %s %s to %s", tag, server_ip, val);
-                        strcpy(server_ip, val);
                     } else if (strstr(tag, "LOCATION_DESC")) {
                         LOG(INFO, "change %s '%s' to '%s'", tag, location, val);
                         strcpy(location, val);
@@ -406,39 +267,9 @@ read_configuration(void)
         pr_lcd_header(-1);
         pr_lcd_line(1, ssid, false);
         pr_lcd_line(2, pass, false);
-        pr_lcd_line(3, server_ip, false);
+        pr_lcd_line(3, canary, false);
         pr_lcd_line(4, location, true);
         sleep(3);
-    }
-}
-
-static int
-sync_with_server(void)
-{
-    char cmd[128];
-    char result[1024];
-    char filename[64];
-    char buf[64];
-
-    if (0 == app_id)
-        app_id = get_appID(ID);
-
-    LOG(INFO, "app_id: %d", app_id);
-
-    if (strstr(cpu_arch, "x86")) {
-        snprintf(cmd, sizeof(cmd), "mv /var/log/syslog /var/log/sentlog");
-    } else {
-        snprintf(cmd, sizeof(cmd), "mv /var/log/messages /var/log/sentlog");
-    }
-
-    execute_command(cmd, result, sizeof(result));
-    LOG(INFO, "mv result: %s", result);
-
-    snprintf(buf, sizeof(buf), "log uid:%d", app_id);
-    snprintf(filename, sizeof(filename), "/var/log/sentlog");
-
-    if (0 >= send_file(srvr_name, server_port, buf, filename, rx_buf)) {
-        LOG(ERROR, "send %s failed", filename);
     }
 }
 
@@ -579,61 +410,18 @@ connection_failed(char* interface, char* ip, char* canary, long int tick)
 {
     char lcdbuf[16];
     int retry = 0;
+    char* alt = (NULL == strstr(_2GHz_ip, ip))? _2GHz_ip : _5GHz_ip;
 
-    if (use_ping) {
-        char* alt = (NULL == strstr(_2GHz_ip, ip))? _2GHz_ip : _5GHz_ip;
+    LOG(INFO, "attempting longer timeout on ping...");
 
-        LOG(INFO, "attempting longer timeout on ping...");
-
-        if(0 != ping_canary(ip, canary, 10, tick)) {
-            if(0 != ping_canary(alt, canary, 10, tick)) {
-                LOG(ERROR, "connection lost on both interfaces at t:%ld", tick);
-            } else {
-                LOG(WARN, "ping alt addr %s succeeded at t:%ld", alt, tick);
-            }
+    if(0 != ping_canary(ip, canary, 10, tick)) {
+        if(0 != ping_canary(alt, canary, 10, tick)) {
+            LOG(ERROR, "connection lost on both interfaces at t:%ld", tick);
         } else {
-            LOG(WARN, "longer ping from addr %s succeeded at t:%ld", ip, tick);
+            LOG(WARN, "ping alt addr %s succeeded at t:%ld", alt, tick);
         }
     } else {
-        char buf[64];
-
-        while (!done) {
-            // TODO: need to check channel change here!
-            snprintf(buf, sizeof(buf), "wdog");
-            http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-            if(parse_get_resp(rx_buf, false, NULL, NULL)) {
-                LOG(WARN, "GET %s succedded - connection restored", buf);
-                break;
-            } else {
-                disconnect_wifi(interface);
-                sleep(1);
-                retry++;
-                outsecs+=5;	// total of sleeps and work ~ 5 seconds...
-
-                if (use_lcd) {
-                    LCDclear();
-                    pr_lcd_header(retry);
-                    pr_lcd_line(1, ssid, false);
-                    pr_lcd_line(2, "NOT CONNECTED", false);
-                    snprintf(lcdbuf, sizeof(lcdbuf), "Retry %d", retry);
-                    pr_lcd_line(3, lcdbuf, false);
-                    pr_lcd_line(4,
-                        pr_s_m_h_d(lcdbuf, sizeof(lcdbuf), "Outage", outsecs),
-                        true);
-                }
-                connect_wifi(interface);
-            }
-
-            sleep(4);
-        }
-
-        // if we didn't quit, rescan and send up results
-        if (!done) {
-            outages++;
-            scan_APs(interface);
-            sync_with_server();
-        }
+        LOG(WARN, "longer ping from addr %s succeeded at t:%ld", ip, tick);
     }
 }
 
@@ -644,7 +432,6 @@ usage(const char *progname)
         "Options:\n"
         " -d daemonize\n"
         " -g run for gdb or valgrind\n"
-        " -u use UDP (ping) rather than TCP (get) to test connectivity \n"
         " -l <level>:  Log output level (default: %d)\n"
         "                                  ALERT: %d\n"
         "                               CRITICAL: %d\n"
@@ -654,10 +441,7 @@ usage(const char *progname)
         "                                   INFO: %d\n"
         "                                  DEBUG: %d\n"
         " -s:          Use stderr for log messages\n"
-        " -n:          Do not auto upgrade App\n"
         " -i: <wlanX>: Wireless Interface to use. wlan0 if unspecified \n"
-        " -a: <addr>:  Server Ip. Default IP used if unspecified \n"
-        " -p: <port>:  Server port. Default port used if unspecified \n"
         " -c: <value>: Contrast value (30 to 90) \n"
         "\n", progname, DEFAULT_LOG_LEVEL, LOG_ALERT, LOG_CRIT, LOG_ERR,
         LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG);
@@ -711,13 +495,12 @@ init_lcd:
     strncpy(interface, INTF, sizeof(interface));
     strncpy(ssid, SSID, sizeof(ssid));
     strncpy(pass, PASS, sizeof(pass));
-    strncpy(server_ip, SRVR_IP, sizeof(server_ip));
     strncpy(_2GHz_ip, _2GHz_IP, sizeof(_2GHz_ip));
     strncpy(_5GHz_ip, _5GHz_IP, sizeof(_5GHz_ip));
     strncpy(location, "no location set", sizeof(location));
     strncpy(canary, Canary_IP, sizeof(canary));
 
-    while ((ch = getopt(argc, argv, "l:dgusni:a:p:c:")) != -1) {
+    while ((ch = getopt(argc, argv, "l:dgsc:")) != -1) {
         switch(ch) {
         case 'l':
             set_log_level(atoi(optarg));
@@ -736,25 +519,12 @@ init_lcd:
         case 'g':
             run_for_gdb = true;
             daemonize = false;
-            auto_upgrade = false;
-            break;
-        case 'u':
-            use_ping = true;
             break;
         case 's':
             set_log_stderr(true);
             break;
-        case 'n':
-            auto_upgrade = false;
-            break;
         case 'i':
             strcpy(interface, optarg);
-            break;
-        case 'a':
-            strcpy(server_ip, optarg);
-            break;
-        case 'p':
-            server_port = atoi(optarg);
             break;
         default:
             return usage(argv[0]);
@@ -794,53 +564,27 @@ init_lcd:
     start_logger("sniff");
     setup_signals();
     read_configuration();
-    snprintf(srvr_name, MAX_NAME_BUF_SZ, "%s", server_ip);
     connect_wifi(interface);
     get_clientID(ID);
     LOG(NOTICE, "arch = %s", cpu_arch);
-    app_id = get_appID(ID);
     scan_APs(interface);
 
     do {
 
         // Every hour...
         if ((tick % 3600) == 0) {
-            snprintf(buf, sizeof(buf), "uvv uid:%d,aver:%x,lver:%x",
-                     app_id, client_app_version, client_lib_version);
-            http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-            if(false == parse_get_resp(rx_buf, false, NULL, &app_id)) {
-                // The image server has returned something other than 200 OK...
-                // check for the latest software and exit/reload if necessary.
-                if (strstr(rx_buf, "202 Accepted")) {
-                    check_sw_versions();
-                } else {
-                    LOG(WARN, "GET %s failed", buf);
-                }
-            }
         }
 
         // Every ten minutes...
         if ((tick % 600) == 0) {
-            sync_with_server();
         }
 
-        // Every five seconds...
-        if ((tick % 5) == 0) {
-            if (use_ping) {
-                if(0 != ping_canary(_2GHz_ip, canary, 2, tick)) {
-                    connection_failed(interface, _2GHz_ip, canary, tick);
-                } else if(0 != ping_canary(_5GHz_ip, canary, 2, tick)) {
-                    connection_failed(interface, _5GHz_ip, canary, tick);
-                }
-            } else {
-                snprintf(buf, sizeof(buf), "wdog");
-                http_get(srvr_name, server_port, buf, rx_buf, GET_TIMEOUT);
-
-                if(false == parse_get_resp(rx_buf, false, NULL, NULL)) {
-                    LOG(WARN, "GET %s failed", buf);
-                    connection_failed(interface, NULL, canary, tick);
-                }
+        // Every ten seconds...
+        if ((tick % 10) == 0) {
+            if(0 != ping_canary(_2GHz_ip, canary, 2, tick)) {
+                connection_failed(interface, _2GHz_ip, canary, tick);
+            } else if(0 != ping_canary(_5GHz_ip, canary, 2, tick)) {
+                connection_failed(interface, _5GHz_ip, canary, tick);
             }
 
             // get system usage / info
@@ -850,7 +594,7 @@ init_lcd:
             } else {
                 pr_s_m_h_d(lcdbuf, sizeof(lcdbuf), "Up",  si.uptime);
 
-                if (tick == 0)	// sync tick to uptime
+                if (tick == 0)    // sync tick to uptime
                     tick = si.uptime / 5;
             }
 
