@@ -3,7 +3,7 @@
 #
 
 AC_PREREQ([2.65])
-AC_INIT([sniffer], [1.0], [BUG-REPORT-ADDRESS])
+AC_INIT([sniff], [1.0], [BUG-REPORT-ADDRESS])
 AM_INIT_AUTOMAKE
 LT_INIT
 
@@ -37,8 +37,7 @@ AC_TYPE_UINT8_T
 AC_FUNC_MALLOC
 
 AC_CONFIG_FILES(
-	sniff/src/Makefile
-	sniff/Makefile
+	src/Makefile
 	Makefile
 )
 

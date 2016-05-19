@@ -1,15 +1,23 @@
-# sniffer
-Wireless Information Tool
+sniff:
+application to access wireless info from via libwit through simple 'c' APIs
 
-Enclosed are 2 directories:
 
+To clean:
+make clean
+   or
+git clean -dxf
+
+
+To build:
+./autogen.sh prefix=/usr
+make
+sudo make install
+
+
+Output:
+/usr/bin/sniff
+
+
+Usage:
 sniff
- - builds the application that uses libwit and libutil to collect WiFi info
-   and present it to the server
 
-meta-wifi-sniffer
- - the metadata required to build a Linux-based distribution for the
-   Raspberry PI clients to run the WIT apps and libs.
-
-
-See the readme files in each directory for build instructions

@@ -1,1 +1,1 @@
-SUBDIRS = sniff
+SUBDIRS = src
