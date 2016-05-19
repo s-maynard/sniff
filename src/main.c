@@ -51,7 +51,6 @@
 #define CONFIG_PATH_SIZE 128
 #define CONFIG_NAME "wit"
 #define CONFIG_NAME_SIZE 32
-#define GET_TIMEOUT 20
 
 
 static char interface[16];
@@ -66,6 +65,9 @@ static unsigned long outsecs = 0;
 static int current_freq = 0;
 static int current_chan = 0;
 static int current_signal = 0;
+static APChannel* ap_chan2 = NULL;
+static APChannel* ap_chan5 = NULL;
+static APChannel* ap_chan = NULL;
 
 static bool use_lcd = true;
 static bool nm_running = false;
@@ -74,7 +76,6 @@ static bool run_for_gdb = false;
 static bool done = false;
 
 static char cpu_arch[MAX_NAME_BUF_SZ];
-static char srvr_name[MAX_NAME_BUF_SZ];
 static int client_app_version = CLIENT_APP_VERSION;
 static int client_lib_version = 0;
 static char ID[64];
@@ -144,16 +145,19 @@ pr_lcd_line(int line, char* str, int flush)
 static void
 pr_lcd_header(long int tick)
 {
+    static int alt = 0;
+
     if (use_lcd) {
         if (tick == -1)
             pr_lcd_line(0, "Configuration:", false);
-    else if (tick & 0x1)
+        else if (alt & 0x1)
             pr_lcd_line(0, IP, false);
         else
             pr_lcd_line(0, MAC, false);
 
         LCDdrawline(0, 10, 83, 10, BLACK);
         LCDdisplay();
+        alt++;
     }
 }
 
@@ -345,9 +349,6 @@ scan_APs(char* interface_str)
     char lcdbuf[16];
     AccessPoint *ap_list = NULL;
     AccessPoint *app = NULL;
-    APChannel* ap_chan2 = NULL;
-    APChannel* ap_chan5 = NULL;
-    APChannel* ap_chan = NULL;
     int ret = 0;
     int aps = 0;
 
@@ -375,10 +376,11 @@ scan_APs(char* interface_str)
         snprintf(lcdbuf, sizeof(lcdbuf), "found %d", aps);
         pr_lcd_line(3, lcdbuf, true);
     }
-
+#if 0
     free_apchannel(ap_chan2);
     free_apchannel(ap_chan5);
     free_apchannel(ap_chan);
+#endif
     free_accesspoint(ap_list);
     sleep(3);
 }
@@ -611,8 +613,11 @@ init_lcd:
             check_wifi(interface);
 
             if (use_lcd) {
+                if (strstr(IP, "0.0.0.0"))
+                    get_ip_str("eth0", IP);
                 LCDclear();
                 pr_lcd_header(tick);
+#if 0
                 pr_lcd_line(1, ssid, false);
                 pr_lcd_line(3, lcdbuf, false); // lcdbuf already holds uptime...
                 snprintf(lcdbuf, sizeof(lcdbuf), "%dMHz %2d %d%%",
@@ -621,6 +626,21 @@ init_lcd:
                 snprintf(lcdbuf, sizeof(lcdbuf),
                          "Out %d/%ld", outages, 1+(tick/5));
                 pr_lcd_line(4, lcdbuf, true);
+#else
+                pr_lcd_line(1, "Recommended:", false);
+                pr_lcd_line(2, " Freq   Ch Sig", false);
+                snprintf(lcdbuf, sizeof(lcdbuf), "%dMHz %2d %2d%%",
+                         ap_chan2->frequency, ap_chan2->chan_num,
+                         current_signal);
+                pr_lcd_line(3, lcdbuf, false);
+                snprintf(lcdbuf, sizeof(lcdbuf), "%dMHz %2d %2d%%",
+                         ap_chan5->frequency, ap_chan5->chan_num,
+                         current_signal);
+                pr_lcd_line(4, lcdbuf, true);
+                free_apchannel(ap_chan2);
+                free_apchannel(ap_chan5);
+                free_apchannel(ap_chan);
+#endif
             }
         }
 
