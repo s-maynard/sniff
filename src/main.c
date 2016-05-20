@@ -52,7 +52,6 @@
 #define CONFIG_NAME "wit"
 #define CONFIG_NAME_SIZE 32
 
-
 static char interface[16];
 static char ssid[32];
 static char pass[128];
@@ -60,6 +59,7 @@ static char _2GHz_ip[128];
 static char _5GHz_ip[128];
 static char location[1024];
 static char canary[128];
+static int contrast = 55;
 static int outages = 0;
 static unsigned long outsecs = 0;
 static int current_freq = 0;
@@ -70,6 +70,7 @@ static APChannel* ap_chan5 = NULL;
 static APChannel* ap_chan = NULL;
 
 static bool use_lcd = true;
+static bool configured = false;
 static bool nm_running = false;
 static bool daemonize = false;
 static bool run_for_gdb = false;
@@ -250,6 +251,9 @@ read_configuration(void)
                     } else if (strstr(tag, "CANARY_IP")) {
                         LOG(INFO, "change %s %s to %s", tag, canary, val);
                         strcpy(canary, val);
+                    } else if (strstr(tag, "CONTRAST")) {
+                        LOG(INFO, "change %s %d to %s", tag, contrast, val);
+                        contrast = atoi(val);
                     } else {
                         LOG(ERROR, "unknown tag: %s", tag);
                     }
@@ -267,14 +271,17 @@ read_configuration(void)
     }
 
     if (use_lcd) {
+        sprintf(line, "contrast: %d", contrast);
         LCDclear();
         pr_lcd_header(-1);
         pr_lcd_line(1, ssid, false);
         pr_lcd_line(2, pass, false);
-        pr_lcd_line(3, canary, false);
+        pr_lcd_line(3, line, false);
         pr_lcd_line(4, location, true);
         sleep(3);
     }
+
+    configured = true;
 }
 
 static void
@@ -444,7 +451,6 @@ usage(const char *progname)
         "                                  DEBUG: %d\n"
         " -s:          Use stderr for log messages\n"
         " -i: <wlanX>: Wireless Interface to use. wlan0 if unspecified \n"
-        " -c: <value>: Contrast value (30 to 90) \n"
         "\n", progname, DEFAULT_LOG_LEVEL, LOG_ALERT, LOG_CRIT, LOG_ERR,
         LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG);
     fflush(stderr);
@@ -458,10 +464,6 @@ int _sclk = 0;
 int _dc = 2;
 int _rst = 4;
 int _cs = 3;
-
-// lcd contrast
-// may need to modify for your screen!  normal: 30-90, default is:55
-int contrast = 55;
 
 /*****************************************************************************
  * MAIN
@@ -477,22 +479,7 @@ int main(int argc, char **argv)
     int ch;
     int temp;
 
-    // check wiringPi setup
-    if (wiringPiSetup() == -1) {
-        fprintf(stderr, "! wiringPiSetup Error\n");
-        use_lcd = false;
-    }
-
-init_lcd:
-    if (use_lcd) {
-        // init and clear lcd
-        LCDInit(_sclk, _din, _dc, _cs, _rst, contrast);
-        LCDclear();
-
-        // show logo
-        LCDshowLogo();
-    }
-
+    // initialize to defaults...
     strncpy(cpu_arch, get_cpu_type(), sizeof(cpu_arch));
     strncpy(interface, INTF, sizeof(interface));
     strncpy(ssid, SSID, sizeof(ssid));
@@ -502,18 +489,11 @@ init_lcd:
     strncpy(location, "no location set", sizeof(location));
     strncpy(canary, Canary_IP, sizeof(canary));
 
-    while ((ch = getopt(argc, argv, "l:dgsc:")) != -1) {
+    // read command line options (and potentially override default settings)...
+    while ((ch = getopt(argc, argv, "l:dgsi:")) != -1) {
         switch(ch) {
         case 'l':
             set_log_level(atoi(optarg));
-            break;
-        case 'c':
-            temp = atoi(optarg);
-            if (temp != contrast)
-            {
-                contrast = temp;
-                goto init_lcd;
-            }
             break;
         case 'd':
             daemonize = true;
@@ -532,6 +512,31 @@ init_lcd:
             return usage(argv[0]);
         }
     }
+
+    // check wiringPi setup
+    if (wiringPiSetup() == -1) {
+        fprintf(stderr, "! wiringPiSetup Error\n");
+        use_lcd = false;
+    }
+
+init_lcd:
+    if (use_lcd) {
+        // init and clear lcd
+        LCDInit(_sclk, _din, _dc, _cs, _rst, contrast);
+        LCDclear();
+
+        // show logo
+        LCDshowLogo();
+    }
+
+    start_logger("sniff");
+    temp = contrast;
+
+    if (!configured)
+        read_configuration();
+
+    if (contrast != temp)
+        goto init_lcd;
 
     if (!run_for_gdb && is_already_running(PID_FILE_NAME)) {
         fprintf(stderr, "%s already running!", argv[0]);
@@ -562,10 +567,7 @@ init_lcd:
         }
     }
 
-    // set module parameters...
-    start_logger("sniff");
     setup_signals();
-    read_configuration();
     connect_wifi(interface);
     get_clientID(ID);
     LOG(NOTICE, "arch = %s", cpu_arch);
