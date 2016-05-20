@@ -582,6 +582,11 @@ init_lcd:
         if ((tick % 600) == 0) {
         }
 
+        // Every forty-five seconds...
+        if ((tick % 45) == 0) {
+            LOG(INFO, "tick = %ld", tick);
+        }
+
         // Every thirty seconds...
         if ((tick % 30) == 0) {
             scan_APs(interface);
