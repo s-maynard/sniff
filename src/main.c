@@ -65,6 +65,7 @@ static unsigned long outsecs = 0;
 static int current_freq = 0;
 static int current_chan = 0;
 static int current_signal = 0;
+static char current_ssid[32];
 static APChannel* ap_chan2 = NULL;
 static APChannel* ap_chan5 = NULL;
 static APChannel* ap_chan = NULL;
@@ -298,7 +299,7 @@ check_wifi(char* interface_str)
     }
 
     snprintf(cmd, sizeof(cmd),
-            "nmcli -f FREQ,SIGNAL,ACTIVE dev wifi list | grep yes");
+            "nmcli -f FREQ,SIGNAL,ACTIVE,SSID dev wifi list | grep %s",current_ssid);
     execute_command(cmd, result, sizeof(result));
     LOG(INFO, "check %s result: %s", interface_str, result);
     current_freq = atoi(result);
@@ -367,6 +368,8 @@ scan_APs(char* interface_str)
     }
 
     ap_list = wifi_scan(interface_str);
+    strcpy(current_ssid, ap_list->ssid);
+    LOG(INFO, "Current SSID ******************** %s %s", current_ssid, ap_list->ssid);
     ap_chan2 = get_suggested_AP_settings(2, ap_list);
     ap_chan5 = get_suggested_AP_settings(5, ap_list);
     ap_chan = wifi_survey(interface_str);
