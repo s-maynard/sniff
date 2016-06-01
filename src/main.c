@@ -65,10 +65,8 @@ static unsigned long outsecs = 0;
 static int current_freq = 0;
 static int current_chan = 0;
 static int current_signal = 0;
-static char current_ssid[32];
 static APChannel* ap_chan2 = NULL;
 static APChannel* ap_chan5 = NULL;
-static APChannel* ap_chan = NULL;
 
 static bool use_lcd = true;
 static bool configured = false;
@@ -299,7 +297,7 @@ check_wifi(char* interface_str)
     }
 
     snprintf(cmd, sizeof(cmd),
-            "nmcli -f FREQ,SIGNAL,ACTIVE,SSID dev wifi list | grep %s",current_ssid);
+            "nmcli -f FREQ,SIGNAL,ACTIVE dev wifi list | grep yes");
     execute_command(cmd, result, sizeof(result));
     LOG(INFO, "check %s result: %s", interface_str, result);
     current_freq = atoi(result);
@@ -351,7 +349,7 @@ disconnect_wifi(char* interface_str)
     LOG(INFO, "disconnect %s result: %s", interface_str, result);
 }
 
-static void
+static int
 scan_APs(char* interface_str)
 {
     char lcdbuf[16];
@@ -368,11 +366,8 @@ scan_APs(char* interface_str)
     }
 
     ap_list = wifi_scan(interface_str);
-    strcpy(current_ssid, ap_list->ssid);
-    LOG(INFO, "Current SSID ******************** %s %s", current_ssid, ap_list->ssid);
     ap_chan2 = get_suggested_AP_settings(2, ap_list);
     ap_chan5 = get_suggested_AP_settings(5, ap_list);
-    ap_chan = wifi_survey(interface_str);
     ret = save_WIT_settings(ap_chan2, ap_chan5);
 
     if (use_lcd) {
@@ -389,10 +384,10 @@ scan_APs(char* interface_str)
 #if 0
     free_apchannel(ap_chan2);
     free_apchannel(ap_chan5);
-    free_apchannel(ap_chan);
 #endif
     free_accesspoint(ap_list);
     sleep(3);
+    return aps;
 }
 
 static int
@@ -489,7 +484,7 @@ int main(int argc, char **argv)
     strncpy(pass, PASS, sizeof(pass));
     strncpy(_2GHz_ip, _2GHz_IP, sizeof(_2GHz_ip));
     strncpy(_5GHz_ip, _5GHz_IP, sizeof(_5GHz_ip));
-    strncpy(location, "no location set", sizeof(location));
+    strncpy(location, "no location!", sizeof(location));
     strncpy(canary, Canary_IP, sizeof(canary));
 
     // read command line options (and potentially override default settings)...
@@ -585,14 +580,10 @@ init_lcd:
         if ((tick % 600) == 0) {
         }
 
-        // Every forty-five seconds...
-        if ((tick % 45) == 0) {
-            LOG(INFO, "tick = %ld", tick);
-        }
-
         // Every thirty seconds...
         if ((tick % 30) == 0) {
-            scan_APs(interface);
+            if (0 == scan_APs(interface))
+                continue;
 #if 0
             if(0 != ping_canary(_2GHz_ip, canary, 2, tick)) {
                 connection_failed(interface, _2GHz_ip, canary, tick);
@@ -641,17 +632,17 @@ init_lcd:
                 pr_lcd_line(2, " Freq   Ch Sig", false);
                 snprintf(lcdbuf, sizeof(lcdbuf), "%dMHz %2d %2d%%",
                          ap_chan2->frequency, ap_chan2->chan_num,
-                         current_signal);
+                         ap_chan2->signal);
                 pr_lcd_line(3, lcdbuf, false);
                 snprintf(lcdbuf, sizeof(lcdbuf), "%dMHz %2d %2d%%",
                          ap_chan5->frequency, ap_chan5->chan_num,
-                         current_signal);
+                         ap_chan5->signal);
                 pr_lcd_line(4, lcdbuf, true);
-                free_apchannel(ap_chan2);
-                free_apchannel(ap_chan5);
-                free_apchannel(ap_chan);
 #endif
             }
+
+            free_apchannel(ap_chan2);
+            free_apchannel(ap_chan5);
         }
 
         // Every second...
