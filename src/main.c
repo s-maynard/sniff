@@ -283,7 +283,7 @@ read_configuration(void)
     configured = true;
 }
 
-static void
+static int
 check_wifi(char* interface_str)
 {
     char cmd[128];
@@ -306,6 +306,7 @@ check_wifi(char* interface_str)
     LOG(INFO, "freq:%d, chan:%d, signal:%d",
         current_freq, current_chan, current_signal);
     get_ip_str(interface_str, IP);
+    return(current_freq != 0);
 }
 
 static void
@@ -611,7 +612,9 @@ init_lcd:
             totalRam = si.freeram / 1024 / 1024;
             LOG(INFO, "%s, CPU %ld%%, RAM %ld MB",
                     lcdbuf, avgCpuLoad, totalRam);
-            check_wifi(interface);
+
+            if (!check_wifi(interface))
+                connect_wifi(interface);
 
             if (use_lcd) {
                 if (strstr(IP, "0.0.0.0"))
