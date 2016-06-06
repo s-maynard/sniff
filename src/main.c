@@ -47,7 +47,7 @@
 #define SSID "ATGWiFi"
 #define PASS "mystrotv"
 #define CONFIG_PATH_EXT "/media/usb"
-#define CONFIG_PATH_INT "/home/pi"
+#define CONFIG_PATH_INT "/etc"
 #define CONFIG_PATH_SIZE 128
 #define CONFIG_NAME "wit"
 #define CONFIG_NAME_SIZE 32
@@ -263,7 +263,7 @@ read_configuration(void)
         (void)fclose(fp);
 
         if (strstr(url, "usb")) {
-            snprintf(cmd, sizeof(cmd), "cp %s /home/pi/wit.cfg", url);
+            snprintf(cmd, sizeof(cmd), "cp %s %s/wit.cfg", url, CONFIG_PATH_INT);
             execute_command(cmd, result, sizeof(result));
             LOG(INFO, "cp result: %s", result);
         }
